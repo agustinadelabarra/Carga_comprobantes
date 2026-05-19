@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión de Comprobantes Médicos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#f0f4f8;--surface:#fff;--surface2:#f7f9fc;--border:#dde3ec;--border-dark:#c5cfe0;
+  --blue:#1a4fa0;--blue-mid:#2563c4;--blue-light:#eef3fb;--blue-accent:#3b82f6;
+  --teal:#0d7377;--teal-light:#e6f4f4;--text:#0f1c2e;--text-dim:#3d5166;--text-muted:#7a8fa6;
+  --green:#0a6640;--green-light:#e6f4ee;--red:#991b1b;--red-light:#fef2f2;
+  --shadow:0 1px 4px rgba(15,28,46,.07),0 4px 16px rgba(15,28,46,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* HEADER */
+.header{background:var(--blue);position:relative;overflow:hidden;}
+.header::after{content:'';position:absolute;right:-30px;top:-30px;width:180px;height:180px;border-radius:50%;border:1px solid rgba(255,255,255,.07);}
+.header-inner{display:flex;align-items:center;gap:16px;padding:18px 32px;position:relative;z-index:1;}
+.header-icon{width:42px;height:42px;background:rgba(255,255,255,.12);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.header-icon svg{width:22px;height:22px;}
+.header-title{font-size:18px;font-weight:600;color:#fff;letter-spacing:-.01em;}
+.header-sub{font-size:12px;color:rgba(255,255,255,.5);margin-top:2px;font-family:'DM Mono',monospace;letter-spacing:.04em;}
+.header-stat{margin-left:auto;text-align:right;}
+.header-stat-n{font-size:22px;font-weight:600;color:#fff;font-family:'DM Mono',monospace;}
+.header-stat-l{font-size:11px;color:rgba(255,255,255,.45);font-family:'DM Mono',monospace;letter-spacing:.06em;}
+.subbar{background:#163d80;padding:8px 32px;display:flex;align-items:center;gap:20px;}
+.subbar-item{display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;}
+.subbar-dot{width:6px;height:6px;border-radius:50%;background:#4ade80;}
+
+/* MAIN TABS */
+.main-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 32px;display:flex;}
+.main-tab{padding:14px 20px;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;gap:8px;}
+.main-tab:hover{color:var(--text-dim);}
+.main-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+.pending-badge{background:#dc2626;color:#fff;font-size:11px;font-family:'DM Mono',monospace;padding:1px 6px;border-radius:99px;font-weight:700;}
+
+/* VIEWS */
+.view{display:none;} .view.active{display:block;}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:380px 1fr;gap:20px;padding:24px 32px;max-width:1200px;margin:0 auto;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.card-title{font-size:13px;font-weight:600;color:var(--text);}
+.card-badge{margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;padding:2px 8px;border-radius:99px;background:var(--blue-light);color:var(--blue-mid);}
+.card-body{padding:18px;}
+
+/* UPLOAD */
+.upload-zone{border:2px dashed var(--border-dark);border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);position:relative;}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--blue-accent);background:var(--blue-light);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{width:44px;height:44px;background:var(--blue-light);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
+.upload-icon svg{width:22px;height:22px;color:var(--blue-mid);}
+.upload-title{font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px;}
+.upload-sub{font-size:12px;color:var(--text-muted);line-height:1.5;}
+.preview-wrap{display:none;margin-top:14px;border-radius:8px;overflow:hidden;border:1px solid var(--border);position:relative;}
+.preview-wrap img{width:100%;max-height:220px;object-fit:contain;background:var(--surface2);display:block;}
+.preview-label{position:absolute;top:8px;left:8px;background:rgba(15,28,46,.7);color:#fff;font-size:10px;padding:3px 8px;border-radius:4px;font-family:'DM Mono',monospace;}
+.preview-remove{position:absolute;top:8px;right:8px;background:rgba(153,27,27,.85);color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;}
+
+/* BUTTONS */
+.btn-procesar{width:100%;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;}
+.btn-procesar:hover:not(:disabled){background:var(--blue-mid);}
+.btn-procesar:disabled{background:var(--text-muted);cursor:not-allowed;}
+.btn-agregar{width:100%;padding:11px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-agregar:hover{background:#0a5e62;}
+.btn-export{padding:7px 14px;background:var(--green);color:#fff;border:none;border-radius:6px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;}
+.btn-export:hover{background:#085030;}
+.btn-export:disabled{background:var(--text-muted);cursor:not-allowed;}
+
+/* LOADING */
+.loading-wrap{display:none;text-align:center;padding:20px;}
+.loading-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:10px;}
+.loading-bar-fill{height:100%;background:var(--blue-accent);border-radius:2px;animation:loading 1.5s ease-in-out infinite;width:40%;}
+@keyframes loading{0%{margin-left:-40%;}100%{margin-left:100%;}}
+.loading-text{font-size:13px;color:var(--text-muted);font-family:'DM Mono',monospace;}
+
+/* FIELDS */
+.resultado-card{display:none;}
+.field-group{margin-bottom:14px;}
+.field-label{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px;}
+.field-value{font-size:14px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;min-height:36px;}
+.field-value.editable{background:#fff;}
+.field-value input{width:100%;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:14px;color:var(--text);outline:none;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+/* ITEMS TABLE */
+.items-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;}
+.items-table th{text-align:left;font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);padding:6px 8px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.06em;font-weight:400;}
+.items-table td{padding:7px 8px;color:var(--text-dim);border-bottom:1px solid var(--surface2);vertical-align:top;line-height:1.4;}
+.items-table tr:last-child td{border-bottom:none;}
+.total-row{background:var(--blue-light);border-radius:6px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+.total-label{font-size:13px;font-weight:500;color:var(--blue);font-family:'DM Mono',monospace;}
+.total-value{font-size:16px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;}
+
+/* RIGHT PANEL */
+.panel-registro{display:flex;flex-direction:column;gap:16px;}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);}
+.stat-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;}
+.stat-value{font-size:20px;font-weight:600;color:var(--blue);font-family:'DM Mono',monospace;}
+.tabla-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);}
+.tabla-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.tabla-head-title{font-size:13px;font-weight:600;color:var(--text);}
+
+/* REGISTRO TABLE */
+.registro-table{width:100%;border-collapse:collapse;font-size:13px;}
+.registro-table th{text-align:left;font-family:'DM Mono',monospace;font-size:10px;color:var(--text-muted);padding:10px 14px;border-bottom:1px solid var(--border);font-weight:400;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2);}
+.registro-table td{padding:11px 14px;color:var(--text-dim);border-bottom:1px solid var(--surface2);vertical-align:middle;}
+.registro-table tr:last-child td{border-bottom:none;}
+.registro-table tr:hover td{background:var(--surface2);}
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-muted);}
+.empty-icon{font-size:32px;margin-bottom:12px;opacity:.4;}
+.empty-text{font-size:14px;line-height:1.6;}
+
+/* REGISTRO VIEW */
+.registro-view-wrap{padding:24px 32px;max-width:1200px;margin:0 auto;}
+.role-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);flex-wrap:wrap;}
+.role-label{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0;}
+.role-btns{display:flex;gap:8px;}
+.role-btn{padding:7px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text-dim);cursor:pointer;transition:all .2s;}
+.role-btn:hover{border-color:var(--blue);color:var(--blue);}
+.role-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+.role-disclaimer{font-size:11px;color:var(--text-muted);font-style:italic;margin-left:auto;}
+
+/* PILLS */
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-family:'DM Mono',monospace;}
+.pill-auto{background:#fef9c3;color:#854d0e;}
+.pill-admin{background:#dbeafe;color:#1e40af;}
+.pill-owner{background:#ede9fe;color:#5b21b6;}
+.pill-approved{background:var(--green-light);color:var(--green);}
+.pill-rejected{background:#fce7f3;color:#9d174d;}
+
+/* ACTION BTNS */
+.action-btn{padding:5px 10px;border-radius:5px;border:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;margin-right:4px;}
+.btn-approve{background:var(--green-light);color:var(--green);}
+.btn-approve:hover{background:var(--green);color:#fff;}
+.btn-reject{background:var(--red-light);color:var(--red);}
+.btn-reject:hover{background:var(--red);color:#fff;}
+.delete-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;}
+.delete-btn:hover{background:var(--red-light);color:var(--red);}
+.error-msg{display:none;background:var(--red-light);border:1px solid rgba(153,27,27,.15);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--red);margin-top:12px;line-height:1.5;}
+
+@media(max-width:900px){.layout{grid-template-columns:1fr;}.stats-row{grid-template-columns:1fr 1fr;}.role-disclaimer{display:none;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 12h6M12 9v6M7 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4H7z"/>
+      </svg>
+    </div>
+    <div>
+      <div class="header-title">Gestión de Comprobantes Médicos</div>
+      <div class="header-sub">Digitalización automática · IA · Aprobación por roles</div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-n" id="stat-total-header">$0</div>
+      <div class="header-stat-l">total registrado</div>
+    </div>
+  </div>
+  <div class="subbar">
+    <div class="subbar-item"><div class="subbar-dot"></div>Sistema activo</div>
+    <div class="subbar-item">· Claude Vision API</div>
+    <div class="subbar-item">· Workflow de aprobación</div>
+  </div>
+</div>
+
+<div class="main-tabs">
+  <div class="main-tab active" onclick="switchTab('cargar')" id="tab-cargar">📄 Cargar factura</div>
+  <div class="main-tab" onclick="switchTab('registro')" id="tab-registro">📋 Registro y aprobación <span class="pending-badge" id="pending-badge" style="display:none">0</span></div>
+</div>
+
+<!-- SOLAPA 1: CARGAR -->
+<div class="view active" id="view-cargar">
+  <div class="layout">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-head">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue-mid)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div class="card-title">Cargar comprobante</div>
+          <div class="card-badge">Paso 1</div>
+        </div>
+        <div class="card-body">
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" accept="image/*" onchange="handleFile(event)">
+            <div class="upload-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            </div>
+            <div class="upload-title">Arrastrá o hacé click para subir</div>
+            <div class="upload-sub">Foto de factura · JPG o PNG · Máx. 10MB</div>
+          </div>
+          <div class="preview-wrap" id="preview-wrap">
+            <img id="preview-img" src="" alt="preview">
+            <div class="preview-label" id="preview-label"></div>
+            <button class="preview-remove" onclick="removeFile()">✕ Quitar</button>
+          </div>
+          <div class="error-msg" id="error-msg"></div>
+          <button class="btn-procesar" id="btn-procesar" onclick="procesarFactura()" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Analizar con IA
+          </button>
+          <div class="loading-wrap" id="loading-wrap">
+            <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+            <div class="loading-text">Claude está analizando el comprobante...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card resultado-card" id="resultado-card">
+        <div class="card-head">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--teal)"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <div class="card-title">Datos extraídos</div>
+          <div class="card-badge" style="background:var(--teal-light);color:var(--teal)">Revisá y confirmá</div>
+        </div>
+        <div class="card-body">
+          <div class="field-group">
+            <div class="field-label">Prestador</div>
+            <div class="field-value editable"><input type="text" id="f-prestador" placeholder="—"></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group">
+              <div class="field-label">Fecha de emisión</div>
+              <div class="field-value editable"><input type="text" id="f-fecha" placeholder="—"></div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">N° Comprobante</div>
+              <div class="field-value editable"><input type="text" id="f-numero" placeholder="—"></div>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Paciente</div>
+            <div class="field-value editable"><input type="text" id="f-paciente" placeholder="—"></div>
+          </div>
+          <div class="two-col">
+            <div class="field-group">
+              <div class="field-label">N° Afiliado</div>
+              <div class="field-value editable"><input type="text" id="f-afiliado" placeholder="—"></div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">Obra Social</div>
+              <div class="field-value editable"><input type="text" id="f-obrasocial" placeholder="—"></div>
+            </div>
+          </div>
+          <div class="field-group">
+            <div class="field-label">Prestaciones</div>
+            <div class="field-value" style="padding:0;overflow:hidden">
+              <table class="items-table">
+                <thead><tr><th>Descripción</th><th style="text-align:right">Importe</th></tr></thead>
+                <tbody id="items-tbody"><tr><td colspan="2" style="color:var(--text-muted);text-align:center;padding:12px">—</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="total-row">
+            <span class="total-label">TOTAL</span>
+            <span class="total-value" id="f-total">$0</span>
+          </div>
+          <div id="aprobacion-preview" style="margin-top:10px;padding:10px 12px;border-radius:6px;font-size:13px;display:none"></div>
+          <button class="btn-agregar" onclick="agregarAlRegistro()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Agregar al registro
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-registro">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Comprobantes</div><div class="stat-value" id="st-cantidad">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total acumulado</div><div class="stat-value" id="st-total">$0</div></div>
+        <div class="stat-card"><div class="stat-label">Pendientes</div><div class="stat-value" id="st-pendientes" style="color:#dc2626">0</div></div>
+      </div>
+      <div class="tabla-wrap">
+        <div class="tabla-head">
+          <div class="tabla-head-title">Últimas facturas cargadas</div>
+          <button class="btn-export" id="btn-export" onclick="exportarExcel()" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar Excel
+          </button>
+        </div>
+        <div id="tabla-content">
+          <div class="empty-state"><div class="empty-icon">🗂</div><div class="empty-text">Todavía no hay comprobantes.<br>Subí una factura para empezar.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SOLAPA 2: REGISTRO Y APROBACION -->
+<div class="view" id="view-registro">
+  <div class="registro-view-wrap">
+    <div class="role-bar">
+      <div class="role-label">Vista de rol:</div>
+      <div class="role-btns">
+        <button class="role-btn active" onclick="setRole('general')" id="rbtn-general">👁 General</button>
+        <button class="role-btn" onclick="setRole('admin')" id="rbtn-admin">👤 Administrador</button>
+        <button class="role-btn" onclick="setRole('owner')" id="rbtn-owner">⭐ Dueño</button>
+      </div>
+      <div class="role-disclaimer">⚠ Demo: en producción los roles estarían controlados por login</div>
+    </div>
+    <div class="tabla-wrap">
+      <div class="tabla-head">
+        <div class="tabla-head-title" id="registro-view-title">Todas las facturas</div>
+        <button class="btn-export" id="btn-export2" onclick="exportarExcel()" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar Excel
+        </button>
+      </div>
+      <div id="tabla-registro-content">
+        <div class="empty-state"><div class="empty-icon">🗂</div><div class="empty-text">No hay facturas cargadas todavía.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var WORKER_URL = 'https://origen-cafe-api.agustinadelabarra.workers.dev';
+var currentImageBase64 = null;
+var currentImageType = null;
+var registro = [];
+var currentRole = 'general';
+var totalAcumulado = 0;
+
+function evaluarAprobacion(total) {
+  if (total < 50000) return { estado: 'auto', label: 'Aprobacion automatica', pill: 'pill-auto' };
+  if (total <= 80000) return { estado: 'admin', label: 'Pendiente administrador', pill: 'pill-admin' };
+  return { estado: 'owner', label: 'Pendiente dueno', pill: 'pill-owner' };
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.main-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('view-' + tab).classList.add('active');
+  if (tab === 'registro') renderRegistroView();
+}
+
+function setRole(role) {
+  currentRole = role;
+  document.querySelectorAll('.role-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('rbtn-' + role).classList.add('active');
+  renderRegistroView();
+}
+
+// DRAG DROP
+var zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', function(e){ e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', function(){ zone.classList.remove('dragover'); });
+zone.addEventListener('drop', function(e){ e.preventDefault(); zone.classList.remove('dragover'); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); });
+
+function handleFile(e) { if(e.target.files[0]) processFile(e.target.files[0]); }
+
+function processFile(file) {
+  if(file.size > 10*1024*1024){ showError('El archivo es demasiado grande. Maximo 10MB.'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var result = e.target.result;
+    currentImageBase64 = result.split(',')[1];
+    currentImageType = file.type || 'image/jpeg';
+    document.getElementById('preview-img').src = result;
+    document.getElementById('preview-label').textContent = file.name;
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('btn-procesar').disabled = false;
+    hideError();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeFile() {
+  currentImageBase64 = null; currentImageType = null;
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('preview-img').src = '';
+  document.getElementById('btn-procesar').disabled = true;
+  document.getElementById('file-input').value = '';
+  document.getElementById('resultado-card').style.display = 'none';
+  document.getElementById('aprobacion-preview').style.display = 'none';
+  hideError();
+}
+
+function showError(msg){ var el=document.getElementById('error-msg'); el.textContent=msg; el.style.display='block'; }
+function hideError(){ document.getElementById('error-msg').style.display='none'; }
+
+function procesarFactura() {
+  if(!currentImageBase64) return;
+  document.getElementById('btn-procesar').disabled = true;
+  document.getElementById('loading-wrap').style.display = 'block';
+  document.getElementById('resultado-card').style.display = 'none';
+  hideError();
+
+  var prompt = 'Sos un extractor de datos de facturas medicas argentinas. Analizá la imagen y devolvé SOLO un JSON, sin texto ni markdown.\n\nEJEMPLO RESUELTO:\nFactura con estos datos visibles:\n- Razon Social emisor (arriba): BALDUCCI MARIANA\n- Tipo: FACTURA B / Punto de Venta: 00003 / Comp. Nro: 00000533\n- Fecha de Emision: 30/04/2026 (NO tomar fecha de vencimiento ni fecha de CAE)\n- Campo "Apellido y Nombre / Razon Social" del receptor: FERRO BELEN MARIA (este es el paciente)\n- En el texto de la prestacion aparece "Afiliada 10686 F" (ese es el numero de afiliado)\n- Importe Total: 96000\n\nJSON correcto para ese ejemplo:\n{"prestador":"BALDUCCI MARIANA","fecha":"30/04/2026","numero_comprobante":"00003-00000533","paciente":"FERRO BELEN MARIA","numero_afiliado":"10686 F","obra_social":null,"items":[{"descripcion":"8 sesiones de terapia individual - Abril 2026","importe":96000}],"total":96000,"moneda":"ARS"}\n\nREGLAS:\n- fecha: siempre Fecha de Emision, nunca vencimiento ni CAE\n- numero_comprobante: Punto de Venta + guion + Comp. Nro\n- paciente: campo "Apellido y Nombre / Razon Social" del RECEPTOR (no del emisor)\n- numero_afiliado: buscar en el texto de la prestacion como "Afiliada/o XXXXX"\n- total: valor de "Importe Total", nunca precio unitario\n- importes: numeros sin puntos de miles ni simbolos (96000 no 96.000)\n- campos no visibles: null\n\nDevolvé SOLO el JSON para la factura de la imagen.';
+
+  var body = JSON.stringify({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: currentImageType, data: currentImageBase64 } },
+        { type: 'text', text: prompt }
+      ]
+    }]
+  });
+
+  fetch(WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      document.getElementById('loading-wrap').style.display = 'none';
+      document.getElementById('btn-procesar').disabled = false;
+      if(data.error) throw new Error(data.error.message || 'Error de la API');
+      var raw = (data.content && data.content[0] && data.content[0].text) ? data.content[0].text : '';
+      raw = raw.replace(/```json|```/g, '').trim();
+      var parsed = JSON.parse(raw);
+      mostrarResultado(parsed);
+    })
+    .catch(function(err) {
+      document.getElementById('loading-wrap').style.display = 'none';
+      document.getElementById('btn-procesar').disabled = false;
+      showError('No se pudo procesar. Verificá que la imagen sea clara. (' + err.message + ')');
+    });
+}
+
+function mostrarResultado(data) {
+  document.getElementById('f-prestador').value = data.prestador || '';
+  document.getElementById('f-fecha').value = data.fecha || '';
+  document.getElementById('f-numero').value = data.numero_comprobante || '';
+  document.getElementById('f-paciente').value = data.paciente || '';
+  document.getElementById('f-afiliado').value = data.numero_afiliado || '';
+  document.getElementById('f-obrasocial').value = data.obra_social || '';
+
+  var tbody = document.getElementById('items-tbody');
+  if(data.items && data.items.length > 0) {
+    tbody.innerHTML = data.items.map(function(item) {
+      return '<tr><td>' + (item.descripcion||'—') + '</td><td style="text-align:right;font-family:DM Mono,monospace;white-space:nowrap">' + fmtMonto(item.importe, data.moneda) + '</td></tr>';
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan="2" style="color:var(--text-muted);text-align:center;padding:12px">Sin items detectados</td></tr>';
+  }
+
+  var total = typeof data.total === 'number' ? data.total : parseFloat(String(data.total).replace(/\./g,'').replace(',','.')) || 0;
+  document.getElementById('f-total').textContent = fmtMonto(total, data.moneda);
+  document.getElementById('f-total').dataset.raw = total;
+
+  var apr = evaluarAprobacion(total);
+  var aprEl = document.getElementById('aprobacion-preview');
+  var colors = { auto: '#854d0e', admin: '#1e40af', owner: '#5b21b6' };
+  var bgs = { auto: '#fef9c3', admin: '#dbeafe', owner: '#ede9fe' };
+  aprEl.style.background = bgs[apr.estado];
+  aprEl.style.color = colors[apr.estado];
+  aprEl.textContent = 'Esta factura requiere: ' + apr.label;
+  aprEl.style.display = 'block';
+
+  document.getElementById('resultado-card').style.display = 'block';
+}
+
+function fmtMonto(valor, moneda) {
+  if(valor == null || valor === '') return '—';
+  var n = typeof valor === 'number' ? valor : parseFloat(String(valor).replace(/\./g,'').replace(',','.')) || 0;
+  var sym = moneda === 'USD' ? 'U$S ' : '$';
+  return sym + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function agregarAlRegistro() {
+  var totalRaw = parseFloat(document.getElementById('f-total').dataset.raw) || 0;
+  var apr = evaluarAprobacion(totalRaw);
+  var itemsRows = document.getElementById('items-tbody').querySelectorAll('tr');
+  var detalle = Array.from(itemsRows).map(function(tr){ var c=tr.querySelectorAll('td'); return c.length>=2?c[0].textContent:''; }).join(' / ');
+
+  var entry = {
+    id: Date.now(),
+    prestador: document.getElementById('f-prestador').value || '—',
+    fecha: document.getElementById('f-fecha').value || '—',
+    numero: document.getElementById('f-numero').value || '—',
+    paciente: document.getElementById('f-paciente').value || '—',
+    afiliado: document.getElementById('f-afiliado').value || '—',
+    obra_social: document.getElementById('f-obrasocial').value || '—',
+    total_raw: totalRaw,
+    total_display: document.getElementById('f-total').textContent,
+    detalle: detalle,
+    estado: apr.estado,
+    estado_label: apr.label,
+    pill: apr.pill,
+    cargado: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  };
+
+  registro.push(entry);
+  renderStats();
+  renderTablaResumen();
+  renderPendingBadge();
+  removeFile();
+  document.getElementById('resultado-card').style.display = 'none';
+  document.getElementById('aprobacion-preview').style.display = 'none';
+}
+
+function aprobar(id) {
+  var e = registro.find(function(r){ return r.id===id; });
+  if(!e) return;
+  e.estado = 'approved'; e.estado_label = 'Aprobada'; e.pill = 'pill-approved';
+  e.aprobado_por = currentRole === 'admin' ? 'Administrador' : 'Dueno';
+  renderRegistroView(); renderStats(); renderTablaResumen(); renderPendingBadge();
+}
+
+function rechazar(id) {
+  var e = registro.find(function(r){ return r.id===id; });
+  if(!e) return;
+  e.estado = 'reupload'; e.estado_label = 'Para recargar'; e.pill = 'pill-rejected';
+  renderRegistroView(); renderStats(); renderTablaResumen(); renderPendingBadge();
+}
+
+function eliminarEntry(id) {
+  registro = registro.filter(function(r){ return r.id!==id; });
+  renderStats(); renderTablaResumen(); renderPendingBadge();
+}
+
+function renderPendingBadge() {
+  var pending = registro.filter(function(r){ return r.estado==='admin'||r.estado==='owner'; }).length;
+  var badge = document.getElementById('pending-badge');
+  if(pending>0){ badge.textContent=pending; badge.style.display='inline-block'; } else { badge.style.display='none'; }
+}
+
+function renderStats() {
+  var total = registro.reduce(function(s,r){ return s+r.total_raw; }, 0);
+  var pending = registro.filter(function(r){ return r.estado==='admin'||r.estado==='owner'; }).length;
+  document.getElementById('st-cantidad').textContent = registro.length;
+  document.getElementById('st-total').textContent = '$' + Math.round(total).toLocaleString('es-AR');
+  document.getElementById('st-pendientes').textContent = pending;
+  document.getElementById('stat-total-header').textContent = '$' + Math.round(total).toLocaleString('es-AR');
+  document.getElementById('btn-export').disabled = registro.length===0;
+  document.getElementById('btn-export2').disabled = registro.length===0;
+}
+
+function renderTablaResumen() {
+  var content = document.getElementById('tabla-content');
+  if(registro.length===0){ content.innerHTML='<div class="empty-state"><div class="empty-icon">🗂</div><div class="empty-text">Todavia no hay comprobantes.<br>Subí una factura para empezar.</div></div>'; return; }
+  var rows = registro.slice().reverse().slice(0,5).map(function(r){
+    return '<tr><td style="font-weight:500;color:var(--text)">' + r.prestador + '</td><td>' + r.paciente + '</td><td style="font-family:DM Mono,monospace;font-size:12px;text-align:right;font-weight:500;color:var(--blue)">' + r.total_display + '</td><td><span class="pill ' + r.pill + '">' + r.estado_label + '</span></td><td><button class="delete-btn" onclick="eliminarEntry(' + r.id + ')">✕</button></td></tr>';
+  }).join('');
+  content.innerHTML = '<table class="registro-table"><thead><tr><th>Prestador</th><th>Paciente</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function renderRegistroView() {
+  var content = document.getElementById('tabla-registro-content');
+  var title = document.getElementById('registro-view-title');
+  var filtered = registro;
+
+  if(currentRole==='admin'){ filtered=registro.filter(function(r){return r.estado==='admin';}); title.textContent='Pendientes — Administrador (entre $50.000 y $80.000)'; }
+  else if(currentRole==='owner'){ filtered=registro.filter(function(r){return r.estado==='owner';}); title.textContent='Pendientes — Dueno (mas de $80.000)'; }
+  else { title.textContent='Todas las facturas'; }
+
+  if(filtered.length===0){
+    var msg = currentRole==='general' ? 'No hay facturas cargadas todavia.' : 'No hay facturas pendientes de aprobacion.';
+    content.innerHTML='<div class="empty-state"><div class="empty-icon">🗂</div><div class="empty-text">'+msg+'</div></div>'; return;
+  }
+
+  var canApprove = currentRole!=='general';
+  var rows = filtered.map(function(r) {
+    var canAct = canApprove && ((currentRole==='admin'&&r.estado==='admin')||(currentRole==='owner'&&r.estado==='owner'));
+    var actionCell = canApprove ? '<td>' + (canAct ? '<button class="action-btn btn-approve" onclick="aprobar('+r.id+')">✓ Aprobar</button><button class="action-btn btn-reject" onclick="rechazar('+r.id+')">✕ Rechazar</button>' : '—') + '</td>' : '';
+    return '<tr><td style="font-weight:500;color:var(--text)">' + r.prestador + '</td><td>' + r.paciente + '</td><td style="font-family:DM Mono,monospace;font-size:12px">' + r.fecha + '</td><td style="font-size:12px;max-width:160px;color:var(--text-muted)">' + (r.detalle||'—') + '</td><td style="text-align:right;font-family:DM Mono,monospace;font-weight:500;color:var(--blue)">' + r.total_display + '</td><td><span class="pill ' + r.pill + '">' + r.estado_label + '</span></td>' + actionCell + '</tr>';
+  }).join('');
+
+  var actionHeader = canApprove ? '<th>Accion</th>' : '';
+  content.innerHTML = '<table class="registro-table"><thead><tr><th>Prestador</th><th>Paciente</th><th>Fecha</th><th>Detalle</th><th style="text-align:right">Total</th><th>Estado</th>' + actionHeader + '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function exportarExcel() {
+  if(registro.length===0) return;
+  var ws_data = [['Prestador','Paciente','N Afiliado','Obra Social','Fecha','N Comprobante','Total','Estado','Cargado']];
+  registro.forEach(function(r){ ws_data.push([r.prestador,r.paciente,r.afiliado,r.obra_social,r.fecha,r.numero,r.total_raw,r.estado_label,r.cargado]); });
+  var ws = XLSX.utils.aoa_to_sheet(ws_data);
+  ws['!cols'] = [{wch:28},{wch:22},{wch:14},{wch:20},{wch:14},{wch:18},{wch:14},{wch:22},{wch:10}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comprobantes');
+  var fecha = new Date().toLocaleDateString('es-AR').replace(/\//g,'-');
+  XLSX.writeFile(wb, 'comprobantes_medicos_' + fecha + '.xlsx');
+}
+</script>
+</body>
+</html>
