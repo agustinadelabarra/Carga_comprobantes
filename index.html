@@ -323,6 +323,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 
 <script>
 var WORKER_URL = 'https://origen-cafe-api.agustinadelabarra.workers.dev';
+var MAKE_WEBHOOK = 'https://hook.us2.make.com/y62ses3oa1avsllj3j6gzdih9pgyrhjl';
 var currentImageBase64 = null;
 var currentImageType = null;
 var registro = [];
@@ -497,6 +498,27 @@ function agregarAlRegistro() {
   removeFile();
   document.getElementById('resultado-card').style.display = 'none';
   document.getElementById('aprobacion-preview').style.display = 'none';
+
+  // Mandar a Make
+  fetch(MAKE_WEBHOOK, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prestador: entry.prestador,
+      paciente: entry.paciente,
+      fecha: entry.fecha,
+      numero_comprobante: entry.numero,
+      afiliado: entry.afiliado,
+      obra_social: entry.obra_social,
+      total: entry.total_raw,
+      total_display: entry.total_display,
+      detalle: entry.detalle,
+      estado: entry.estado,
+      estado_label: entry.estado_label,
+      cargado: entry.cargado,
+      timestamp: new Date().toISOString()
+    })
+  }).catch(function(err){ console.log('Make webhook error:', err); });
 }
 
 function aprobar(id) {
